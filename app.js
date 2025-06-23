@@ -17,19 +17,20 @@ const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
 const usersDb = couch.db.use('users');
 
-// Create DB if not exists on cold start
-const ensureUsersDb = async () => {
-  try {
-    await couch.db.get('users');
-  } catch {
-    await couch.db.create('users');
-  }
-};
-
-await ensureUsersDb();
-
 // ✅ Cloud Function entry point
+let dbInitialized = false;
+
 export const myApi = async (req, res) => {
+  // Ensure DB is created on first request (cold start)
+  if (!dbInitialized) {
+    try {
+      await couch.db.get('users');
+    } catch {
+      await couch.db.create('users');
+    }
+    dbInitialized = true;
+  }
+
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
@@ -45,6 +46,7 @@ export const myApi = async (req, res) => {
 
   req.databases = { users: usersDb };
 
+  // Test endpoint
   if (req.method === 'GET' && pathname === '/') {
     return res.status(200).json({ message: '🚀 Cloud Function backend running!' });
   }
