@@ -1,0 +1,31 @@
+{
+  "name": "aureum-backend",
+  "version": "1.0.0",
+  "description": "Backend for Aureum Solutions content management platform",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "nano": "^10.1.4",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1"
+    
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "content-management",
+    "couchdb",
+    "backend",
+    "aureum"
+  ],
+  "author": "Aureum Solutions",
+  "license": "MIT"
+}
