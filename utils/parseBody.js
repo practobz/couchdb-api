@@ -1,11 +1,21 @@
 export async function parseBody(req) {
   try {
-    const buffers = [];
-    for await (const chunk of req) {
-      buffers.push(chunk);
+    // Google Cloud Functions automatically parse JSON
+    if (req.body && typeof req.body === 'object') {
+      return req.body;
     }
-    const raw = Buffer.concat(buffers).toString('utf8');
-    return JSON.parse(raw);
+
+    // fallback for plain body
+    const text = await new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk;
+      });
+      req.on('end', () => resolve(body));
+      req.on('error', reject);
+    });
+
+    return JSON.parse(text);
   } catch (err) {
     throw new Error('Invalid JSON body: ' + err.message);
   }
