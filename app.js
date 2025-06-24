@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import url from 'url';
-import { parse } from 'querystring';
 import nano from 'nano';
 
 import adminRoutes from './routes/adminRoutes.js';
@@ -10,19 +9,19 @@ import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
 import { sendJSON } from './utils/response.js';
 
-// CouchDB config
 const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
 const usersDb = couch.db.use('users');
 
-// ✅ Cloud Function entry point
 let dbInitialized = false;
 
 export const myApi = async (req, res) => {
-  // Ensure DB is created on first request (cold start)
+  console.log(`⚡ Request received: ${req.method} ${req.url}`);
+
   if (!dbInitialized) {
+    console.log('🔄 Initializing users DB...');
     try {
       await couch.db.get('users');
     } catch {
@@ -34,21 +33,20 @@ export const myApi = async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
+    console.log('🛑 OPTIONS preflight request');
+    res.statusCode = 204;
+    return res.end();
   }
 
   req.databases = { users: usersDb };
 
-  // Test endpoint
   if (req.method === 'GET' && pathname === '/') {
-    return res.status(200).json({ message: '🚀 Cloud Function backend running!' });
+    return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
 
   if (req.method === 'GET' && pathname === '/databases') {
@@ -56,17 +54,28 @@ export const myApi = async (req, res) => {
       const dbs = await couch.db.list();
       return sendJSON(res, 200, { databases: dbs });
     } catch (error) {
-      console.error('Error connecting to CouchDB:', error.message);
+      console.error('❌ CouchDB error:', error.message);
       return sendJSON(res, 500, { error: 'Failed to connect to CouchDB' });
     }
   }
 
-  const handled =
-    await customerRoutes(req, res) ||
-    await adminRoutes(req, res) ||
-    await creatorRoutes(req, res);
+  try {
+    console.log('➡ Routing to handlers...');
+    const handled =
+      (await adminRoutes(req, res)) ||
+      (await customerRoutes(req, res)) ||
+      (await creatorRoutes(req, res));
 
-  if (!handled && !res.writableEnded) {
-    sendJSON(res, 404, { error: 'Route not found' });
+    console.log('✅ Route handled result:', handled);
+
+    if (!handled && !res.writableEnded) {
+      console.log('❌ No route matched');
+      sendJSON(res, 404, { error: 'Route not found' });
+    }
+  } catch (err) {
+    console.error('❌ Unexpected error in myApi:', err);
+    if (!res.writableEnded) {
+      sendJSON(res, 500, { error: 'Internal Server Error' });
+    }
   }
 };
