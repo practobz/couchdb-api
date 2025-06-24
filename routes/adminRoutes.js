@@ -15,12 +15,14 @@ export default async function adminRoutes(req, res) {
     }
 
     // 🧪 TEMPORARY MOCK TEST HANDLER FOR LOGIN
-    if (req.method === 'POST' && cleanPath === '/login') {
-      console.log('✅ Matched /login — mock test');
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ message: 'Login test passed' }));
-      return true;
-    }
+if (req.method === 'POST' && cleanPath === '/login') {
+  console.log('✅ Matched /login — mock test');
+  const payload = JSON.stringify({ message: 'Login test passed' });
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(payload); // ✅ must pass JSON string here
+  return true;
+}
+
 
   } catch (err) {
     console.error('❌ Error inside adminRoutes:', err);
