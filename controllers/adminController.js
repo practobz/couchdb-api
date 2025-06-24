@@ -1,22 +1,29 @@
-// backend/controllers/adminController.js
+// controllers/adminController.js
 import { parseBody } from '../utils/parseBody.js';
 import { sendJSON } from '../utils/response.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function adminSignup(req, res) {
+  console.log('🚀 adminSignup handler triggered');
+
   try {
     const usersDb = req.databases.users;
+
+    // Parse body safely
     const body = await parseBody(req);
+    console.log('📦 Parsed body:', body);
 
     const { email, password } = body;
+
     if (!email || !password) {
+      console.warn('❌ Missing email or password');
       return sendJSON(res, 400, { error: 'Email and password are required' });
     }
 
-    // Always lowercase and trim email for uniqueness and storage
-    const normalizedEmail = (email || '').trim().toLowerCase();
+    // Normalize email for consistency
+    const normalizedEmail = email.trim().toLowerCase();
 
-    // Password validation
+    // Strong password validation
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
     if (!passwordRegex.test(password)) {
       return sendJSON(res, 400, {
@@ -25,11 +32,19 @@ export async function adminSignup(req, res) {
       });
     }
 
-    const existing = await usersDb.find({ selector: { email: normalizedEmail }, limit: 1 });
+    // Check for existing email
+    console.log('🔍 Checking for existing user...');
+    const existing = await usersDb.find({
+      selector: { email: normalizedEmail },
+      limit: 1
+    });
+
     if (existing.docs.length > 0) {
+      console.warn('⚠️ Email already exists:', normalizedEmail);
       return sendJSON(res, 409, { error: 'Email already exists' });
     }
 
+    // Define default admin permissions
     const ADMIN_PERMISSIONS = [
       'view_all_content',
       'manage_customers',
@@ -50,42 +65,70 @@ export async function adminSignup(req, res) {
       createdAt: new Date().toISOString()
     };
 
+    console.log('📤 Inserting user into CouchDB...');
     const result = await usersDb.insert(user);
-    return sendJSON(res, 201, { message: 'Admin registered', userId: result.id });
+    console.log('✅ User created with ID:', result.id);
+
+    return sendJSON(res, 201, {
+      message: 'Admin registered',
+      userId: result.id
+    });
   } catch (err) {
-    // Always return the actual error if it's a known error, otherwise generic
-    if (err && err.error && typeof err.error === 'string') {
-      return sendJSON(res, 400, { error: err.error });
-    }
-    return sendJSON(res, 500, { error: err.message || 'Failed to create account' });
+    console.error('❌ Error during adminSignup:', err.message);
+    return sendJSON(res, 500, {
+      error: err.message || 'Failed to create account'
+    });
   }
 }
 
 export async function login(req, res) {
-  const usersDb = req.databases.users;
-  const { email, password } = await parseBody(req);
+  console.log('🚀 login handler triggered');
 
-  // Find user by email
-  const found = await usersDb.find({ selector: { email }, limit: 1 });
-  if (found.docs.length === 0) {
-    return sendJSON(res, 401, { error: 'Invalid credentials or sign up to create account' });
-  }
+  try {
+    const usersDb = req.databases.users;
+    const { email, password } = await parseBody(req);
+    console.log('📦 Parsed login body:', { email });
 
-  const user = found.docs[0];
-  if (!user.isActive) {
-    return sendJSON(res, 403, { error: 'Account is inactive' });
-  }
-  if (user.password !== password) {
-    return sendJSON(res, 401, { error: 'Invalid credentials or sign up to create account' });
-  }
+    const found = await usersDb.find({
+      selector: { email },
+      limit: 1
+    });
 
-  return sendJSON(res, 200, {
-    message: 'Login successful',
-    token: user._id,
-    user: {
-      _id: user._id,
-      role: user.role,
-      email: user.email
+    if (found.docs.length === 0) {
+      console.warn('❌ Invalid login - user not found');
+      return sendJSON(res, 401, {
+        error: 'Invalid credentials or sign up to create account'
+      });
     }
-  });
+
+    const user = found.docs[0];
+
+    if (!user.isActive) {
+      console.warn('⛔ Account is inactive');
+      return sendJSON(res, 403, { error: 'Account is inactive' });
+    }
+
+    if (user.password !== password) {
+      console.warn('❌ Invalid login - password mismatch');
+      return sendJSON(res, 401, {
+        error: 'Invalid credentials or sign up to create account'
+      });
+    }
+
+    console.log('✅ Login successful:', user.email);
+    return sendJSON(res, 200, {
+      message: 'Login successful',
+      token: user._id,
+      user: {
+        _id: user._id,
+        role: user.role,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error during login:', err.message);
+    return sendJSON(res, 500, {
+      error: err.message || 'Login failed'
+    });
+  }
 }
