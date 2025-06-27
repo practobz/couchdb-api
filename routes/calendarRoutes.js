@@ -10,33 +10,40 @@ export default async function calendarRoutes(req, res) {
   console.log('🌐 calendarRoutes:', req.method, cleanPath);
 
   // ✅ POST /calendars — create calendar (placed at top to avoid being shadowed)
-  if (req.method === 'POST' && cleanPath === '/calendars') {
-    try {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-
-      const body = Buffer.concat(chunks).toString();
-      const data = JSON.parse(body || '{}');
-
-      const calendar = {
-        _id: uuidv4(),
-        customerId: data.customerId,
-        name: data.name || 'Untitled Calendar',
-        description: data.description || '',
-        contentItems: data.contentItems || [],
-        createdAt: new Date().toISOString()
-      };
-
-      await calendarsDb.insert(calendar);
-      console.log('✅ Calendar inserted:', calendar);
-      return sendJSON(res, 201, calendar);
-    } catch (err) {
-      console.error('❌ Error in POST /calendars:', err);
-      return sendJSON(res, 500, { error: 'Failed to create calendar' });
+  // ✅ POST /calendars — create calendar
+if (req.method === 'POST' && cleanPath === '/calendars') {
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
     }
+
+    const body = Buffer.concat(chunks).toString();
+    const data = JSON.parse(body || '{}');
+
+    console.log('📥 Parsed POST data:', data); // 👈 debug log
+
+    if (!data.customerId) {
+      return sendJSON(res, 400, { error: 'Missing required field: customerId' });
+    }
+
+    const calendar = {
+      _id: uuidv4(),
+      customerId: data.customerId,
+      name: data.name || 'Untitled Calendar',
+      description: data.description || '',
+      contentItems: Array.isArray(data.contentItems) ? data.contentItems : [],
+      createdAt: new Date().toISOString()
+    };
+
+    await calendarsDb.insert(calendar);
+    console.log('✅ Calendar created:', calendar);
+    return sendJSON(res, 201, calendar);
+  } catch (err) {
+    console.error('❌ Error in POST /calendars:', err);
+    return sendJSON(res, 500, { error: 'Failed to create calendar' });
   }
+}
 
   // ✅ GET /calendars or /api/calendars — fetch all calendars
   if (
