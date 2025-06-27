@@ -19,9 +19,10 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
     }
 
     const body = Buffer.concat(chunks).toString();
-    const data = JSON.parse(body || '{}');
+    console.log('📦 Raw Body:', body); // debug
 
-    console.log('📥 Parsed data:', data); // DEBUG LOG
+    const data = JSON.parse(body || '{}');
+    console.log('✅ Parsed Body:', data); // debug
 
     if (!data.customerId) {
       return sendJSON(res, 400, { error: 'Missing required field: customerId' });
@@ -36,13 +37,14 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
       createdAt: new Date().toISOString()
     };
 
-    await req.databases.calendars.insert(calendar);
+    await calendarsDb.insert(calendar);
     return sendJSON(res, 201, calendar);
   } catch (err) {
-    console.error('❌ Failed to create calendar:', err);
+    console.error('❌ Error parsing calendar POST:', err);
     return sendJSON(res, 500, { error: 'Failed to create calendar' });
   }
 }
+
 
   // ✅ GET /calendars or /api/calendars — fetch all calendars
   if (
