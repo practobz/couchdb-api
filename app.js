@@ -7,6 +7,8 @@ import nano from 'nano';
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
+import calendarRoutes from './routes/calendarRoutes.js'; // ✅ Added import
+
 import { sendJSON } from './utils/response.js';
 
 const username = process.env.COUCHDB_USER || 'admin';
@@ -14,18 +16,25 @@ const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
 const usersDb = couch.db.use('users');
+const calendarsDb = couch.db.use('calendars');
 
 let dbInitialized = false;
 
 export const myApi = async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
+  // Ensure DBs are created only once
   if (!dbInitialized) {
-    console.log('🔄 Initializing users DB...');
+    console.log('🔄 Initializing databases...');
     try {
       await couch.db.get('users');
     } catch {
       await couch.db.create('users');
+    }
+    try {
+      await couch.db.get('calendars');
+    } catch {
+      await couch.db.create('calendars');
     }
     dbInitialized = true;
   }
@@ -33,18 +42,25 @@ export const myApi = async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Preflight request handling
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
-  req.databases = { users: usersDb };
+  // Attach DBs to request
+  req.databases = {
+    users: usersDb,
+    calendars: calendarsDb
+  };
 
+  // Basic health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
@@ -59,12 +75,14 @@ export const myApi = async (req, res) => {
     }
   }
 
+  // 🔀 Route handling
   try {
     console.log('➡ Routing to handlers...');
     const handled =
       (await adminRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
-      (await creatorRoutes(req, res));
+      (await creatorRoutes(req, res)) ||
+      (await calendarRoutes(req, res)); // ✅ Included calendar route
 
     console.log('✅ Route handled result:', handled);
 
