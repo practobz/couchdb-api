@@ -9,42 +9,7 @@ export default async function calendarRoutes(req, res) {
 
   console.log('🌐 calendarRoutes:', req.method, cleanPath);
 
-  // ✅ GET /calendars or /api/calendars — fetch all calendars
-  if (
-    req.method === 'GET' &&
-    (cleanPath === '/calendars' || cleanPath === '/api/calendars')
-  ) {
-    try {
-      const result = await calendarsDb.find({ selector: {} });
-      return sendJSON(res, 200, result.docs);
-    } catch (err) {
-      console.error('❌ Error fetching calendars:', err);
-      return sendJSON(res, 500, { error: 'Internal Server Error fetching all calendars' });
-    }
-  }
-
-  // ✅ GET /calendars/:customerId — fetch specific customer's calendars
-  if (req.method === 'GET') {
-    const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
-    if (match) {
-      const customerId = match[1];
-      try {
-        const result = await calendarsDb.find({ selector: { customerId } });
-        const calendars = result.docs || [];
-
-        if (calendars.length === 0) {
-          return sendJSON(res, 404, { error: 'No calendar found for this customer' });
-        }
-
-        return sendJSON(res, 200, calendars);
-      } catch (err) {
-        console.error('❌ Error fetching calendar:', err);
-        return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
-      }
-    }
-  }
-
-  // ✅ POST /calendars — create calendar
+  // ✅ POST /calendars — create calendar (placed at top to avoid being shadowed)
   if (req.method === 'POST' && cleanPath === '/calendars') {
     try {
       const chunks = [];
@@ -73,11 +38,43 @@ export default async function calendarRoutes(req, res) {
     }
   }
 
+  // ✅ GET /calendars or /api/calendars — fetch all calendars
+  if (
+    req.method === 'GET' &&
+    (cleanPath === '/calendars' || cleanPath === '/api/calendars')
+  ) {
+    try {
+      const result = await calendarsDb.find({ selector: {} });
+      return sendJSON(res, 200, result.docs);
+    } catch (err) {
+      console.error('❌ Error fetching calendars:', err);
+      return sendJSON(res, 500, { error: 'Internal Server Error fetching calendars' });
+    }
+  }
+
+  // ✅ GET /calendars/:customerId — fetch specific customer's calendars
+  const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'GET' && match) {
+    const customerId = match[1];
+    try {
+      const result = await calendarsDb.find({ selector: { customerId } });
+      const calendars = result.docs || [];
+
+      if (calendars.length === 0) {
+        return sendJSON(res, 404, { error: 'No calendar found for this customer' });
+      }
+
+      return sendJSON(res, 200, calendars);
+    } catch (err) {
+      console.error('❌ Error fetching calendar:', err);
+      return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
+    }
+  }
+
   // ✅ PUT /calendars/item/:calendarId/:date/:description — update content item
   const itemUpdateMatch = cleanPath.match(/^\/calendars\/item\/([a-zA-Z0-9\-]+)\/(.+?)\/(.+)$/);
   if (req.method === 'PUT' && itemUpdateMatch) {
     const [_, calendarId, date, description] = itemUpdateMatch;
-
     let body = '';
     req.on('data', chunk => (body += chunk));
     req.on('end', async () => {
@@ -95,7 +92,10 @@ export default async function calendarRoutes(req, res) {
         calendarDoc.contentItems = calendarDoc.contentItems.map(item => {
           if (item.date === date && item.description.trim() === decodedDesc) {
             found = true;
-            return { ...item, ...updatedData };
+            return {
+              ...item,
+              ...updatedData
+            };
           }
           return item;
         });
@@ -144,5 +144,5 @@ export default async function calendarRoutes(req, res) {
     }
   }
 
-  return false; // No route matched
+  return false; // No matching route
 }
