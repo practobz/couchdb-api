@@ -7,8 +7,7 @@ import nano from 'nano';
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
-import calendarRoutes from './routes/calendarRoutes.js';
-import gcsRoutes from './routes/gcsRoutes.js'; // ✅ NEW import
+import calendarRoutes from './routes/calendarRoutes.js'; // ✅ Added import
 
 import { sendJSON } from './utils/response.js';
 
@@ -48,18 +47,20 @@ export const myApi = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Preflight request handling
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
+  // Attach DBs to request
   req.databases = {
     users: usersDb,
     calendars: calendarsDb
   };
 
-  // Health check
+  // Basic health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
@@ -74,14 +75,16 @@ export const myApi = async (req, res) => {
     }
   }
 
+  // 🔀 Route handling
   try {
     console.log('➡ Routing to handlers...');
     const handled =
       (await adminRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
-      (await calendarRoutes(req, res)) ||
-      (await gcsRoutes(req, res)); // ✅ ADD THIS LINE
+      (await calendarRoutes(req, res)); // ✅ Included calendar route
+
+    console.log('✅ Route handled result:', handled);
 
     if (!handled && !res.writableEnded) {
       console.log('❌ No route matched');
