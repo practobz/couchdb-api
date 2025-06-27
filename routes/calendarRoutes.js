@@ -16,9 +16,7 @@ export default async function calendarRoutes(req, res) {
     (cleanPath === '/calendars' || cleanPath === '/api/calendars')
   ) {
     try {
-      const result = await calendarsDb.find({
-        selector: {}
-      });
+      const result = await calendarsDb.find({ selector: {} });
       sendJSON(res, 200, result.docs);
       return true;
     } catch (err) {
@@ -28,7 +26,7 @@ export default async function calendarRoutes(req, res) {
     }
   }
 
-  // ✅ GET /calendars/:customerId — fetch specific customer's calendars
+  // ✅ GET /calendars/:customerId — fetch specific customer's calendar
   const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
   if (req.method === 'GET' && match) {
     const customerId = match[1];
@@ -40,17 +38,19 @@ export default async function calendarRoutes(req, res) {
       const calendars = result.docs || [];
 
       if (calendars.length === 0) {
+        console.warn('⚠️ No calendar found for customerId:', customerId);
         return sendJSON(res, 404, { error: 'No calendar found for this customer' });
       }
 
-      return sendJSON(res, 200, calendars);
+      console.log('✅ Calendar found for customerId:', customerId);
+      return sendJSON(res, 200, calendars[0]); // ✅ Return only one calendar
     } catch (err) {
       console.error('❌ Error fetching calendar:', err);
       return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
     }
   }
 
-  // ✅ POST /calendars — create calendar
+  // ✅ POST /calendars — create a new calendar
   if (req.method === 'POST' && cleanPath === '/calendars') {
     let body = '';
     req.on('data', chunk => (body += chunk));
@@ -67,6 +67,7 @@ export default async function calendarRoutes(req, res) {
         };
 
         await calendarsDb.insert(calendar);
+        console.log('✅ Calendar inserted for customer:', data.customerId);
         return sendJSON(res, 201, calendar);
       } catch (err) {
         console.error('❌ Error creating calendar:', err);
@@ -120,7 +121,7 @@ export default async function calendarRoutes(req, res) {
     return true;
   }
 
-  // ✅ DELETE /calendars/item/:calendarId/:date/:description — delete specific content item
+  // ✅ DELETE /calendars/item/:calendarId/:date/:description — delete content item
   const itemDeleteMatch = cleanPath.match(/^\/calendars\/item\/([a-zA-Z0-9\-]+)\/(.+?)\/(.+)$/);
   if (req.method === 'DELETE' && itemDeleteMatch) {
     const [_, calendarId, date, description] = itemDeleteMatch;
