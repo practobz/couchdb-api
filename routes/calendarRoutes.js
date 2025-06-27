@@ -36,6 +36,7 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
       contentItems: Array.isArray(data.contentItems) ? data.contentItems : [],
       createdAt: new Date().toISOString()
     };
+console.log('🛠 Final calendar to insert:', calendar);
 
     await calendarsDb.insert(calendar);
     return sendJSON(res, 201, calendar);
