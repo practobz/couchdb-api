@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sendJSON } from '../utils/response.js';
+import { parseBody } from '../utils/parseBody.js';
 
 const CUSTOMER_PERMISSIONS = [
   'view_own_content',
@@ -10,6 +11,7 @@ const CUSTOMER_PERMISSIONS = [
   'manage_social_accounts'
 ];
 
+// ✅ Create Customer Account
 export async function createCustomer(req, res, data) {
   try {
     const usersDb = req.databases.users;
@@ -22,9 +24,9 @@ export async function createCustomer(req, res, data) {
 
     const newUser = {
       _id: uuidv4(),
-      email, // always lowercased
+      email,
       password: data.password,
-      role: 'customer', // always set role here
+      role: 'customer',
       permissions: CUSTOMER_PERMISSIONS,
       name: data.name,
       mobile: data.mobile,
@@ -38,8 +40,50 @@ export async function createCustomer(req, res, data) {
     await usersDb.insert(newUser);
     return sendJSON(res, 201, { success: true, user: newUser });
   } catch (err) {
-    console.error(err);
-    return sendJSON(res, 500, { error: 'Failed to create account' });
+    console.error('Customer signup error:', err);
+    return sendJSON(res, 500, { error: 'Failed to create customer account' });
   }
 }
 
+// ✅ Customer Login
+export async function loginCustomer(req, res) {
+  try {
+    const usersDb = req.databases.users;
+    const { email, password } = await parseBody(req);
+
+    if (!email || !password) {
+      return sendJSON(res, 400, { error: 'Email and password are required' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const found = await usersDb.find({ selector: { email: normalizedEmail, role: 'customer' }, limit: 1 });
+    if (found.docs.length === 0) {
+      return sendJSON(res, 401, { error: 'Invalid credentials or sign up to create account' });
+    }
+
+    const user = found.docs[0];
+    if (!user.isActive) {
+      return sendJSON(res, 403, { error: 'Account is inactive' });
+    }
+
+    if (user.password !== password) {
+      return sendJSON(res, 401, { error: 'Invalid credentials' });
+    }
+
+    return sendJSON(res, 200, {
+      message: 'Customer login successful',
+      token: user._id,
+      user: {
+        _id: user._id,
+        role: user.role,
+        email: user.email,
+        name: user.name,
+        mobile: user.mobile
+      }
+    });
+  } catch (err) {
+    console.error('Customer login error:', err);
+    return sendJSON(res, 500, { error: 'Login failed due to server error' });
+  }
+}

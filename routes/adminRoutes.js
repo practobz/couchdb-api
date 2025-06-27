@@ -1,35 +1,14 @@
-import { parse } from 'url';
-import { login, adminSignup } from '../controllers/adminController.js';
+import { loginAdmin, adminSignup } from '../controllers/adminController.js';
 
 export default async function adminRoutes(req, res) {
-  const { pathname } = parse(req.url, true);
-  const cleanPath = pathname.replace(/\/+$/, ''); // remove trailing slashes
+  const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
-  console.log(`🧭 adminRoutes: ${req.method} ${cleanPath}`);
+  if (req.method === 'POST' && pathname === '/signup/admin') {
+    return await adminSignup(req, res);
+  }
 
-  try {
-    if (req.method === 'POST' && cleanPath === '/signup/admin') {
-      console.log('✅ Matched /signup/admin');
-      await adminSignup(req, res);
-      return true;
-    }
-
-    // 🧪 TEMPORARY MOCK TEST HANDLER FOR LOGIN
-if (req.method === 'POST' && cleanPath === '/login') {
-  console.log('✅ Matched /login');
-  await login(req, res);
-  return true;
-}
-
-
-
-  } catch (err) {
-    console.error('❌ Error inside adminRoutes:', err);
-    if (!res.writableEnded) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error in adminRoutes' }));
-    }
-    return true;
+  if (req.method === 'POST' && pathname === '/admin/login') {
+    return await loginAdmin(req, res);
   }
 
   return false;

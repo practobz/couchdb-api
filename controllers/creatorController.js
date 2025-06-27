@@ -1,3 +1,4 @@
+// controllers/creatorController.js
 import { parseBody } from '../utils/parseBody.js';
 import { sendJSON } from '../utils/response.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,33 +11,79 @@ const CREATOR_PERMISSIONS = [
   'respond_to_feedback'
 ];
 
+// ✅ Signup
 export async function creatorSignup(req, res) {
-  const usersDb = req.databases.users;
-  const body = await parseBody(req);
+  try {
+    const usersDb = req.databases.users;
+    const body = await parseBody(req);
 
-  const { email, password } = body;
-  if (!email || !password) {
-    return sendJSON(res, 400, { error: 'Email and password are required' });
+    const { email, password } = body;
+    if (!email || !password) {
+      return sendJSON(res, 400, { error: 'Email and password are required' });
+    }
+
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const existing = await usersDb.find({ selector: { email: normalizedEmail }, limit: 1 });
+    if (existing.docs.length > 0) {
+      return sendJSON(res, 409, { error: 'Email already exists' });
+    }
+
+    const user = {
+      _id: uuidv4(),
+      email: normalizedEmail,
+      password,
+      role: 'content_creator',
+      permissions: CREATOR_PERMISSIONS,
+      isActive: true,
+      createdAt: new Date().toISOString()
+    };
+
+    await usersDb.insert(user);
+    return sendJSON(res, 201, { message: 'Content Creator registered', userId: user._id });
+  } catch (err) {
+    console.error('Creator signup error:', err);
+    return sendJSON(res, 500, { error: 'Failed to create content creator account' });
   }
+}
 
-  // Always lowercase and trim email for uniqueness and storage
-  const normalizedEmail = (email || '').trim().toLowerCase();
+// ✅ Login
+export async function loginCreator(req, res) {
+  try {
+    const usersDb = req.databases.users;
+    const { email, password } = await parseBody(req);
 
-  const existing = await usersDb.find({ selector: { email: normalizedEmail }, limit: 1 });
-  if (existing.docs.length > 0) {
-    return sendJSON(res, 409, { error: 'Email already exists' });
+    if (!email || !password) {
+      return sendJSON(res, 400, { error: 'Email and password are required' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const found = await usersDb.find({ selector: { email: normalizedEmail, role: 'content_creator' }, limit: 1 });
+
+    if (found.docs.length === 0) {
+      return sendJSON(res, 401, { error: 'Invalid credentials or sign up to create account' });
+    }
+
+    const user = found.docs[0];
+
+    if (!user.isActive) {
+      return sendJSON(res, 403, { error: 'Account is inactive' });
+    }
+
+    if (user.password !== password) {
+      return sendJSON(res, 401, { error: 'Invalid credentials' });
+    }
+
+    return sendJSON(res, 200, {
+      message: 'Content Creator login successful',
+      token: user._id,
+      user: {
+        _id: user._id,
+        role: user.role,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('Creator login error:', err);
+    return sendJSON(res, 500, { error: 'Login failed due to server error' });
   }
-
-  const user = {
-    _id: uuidv4(),
-    email: normalizedEmail,
-    password,
-    role: 'content_creator', // always set role here
-    permissions: CREATOR_PERMISSIONS,
-    isActive: true,
-    createdAt: new Date().toISOString()
-  };
-
-  await usersDb.insert(user);
-  return sendJSON(res, 201, { message: 'Content Creator registered', userId: user._id });
 }
