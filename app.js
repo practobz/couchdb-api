@@ -7,7 +7,8 @@ import nano from 'nano';
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
-import calendarRoutes from './routes/calendarRoutes.js'; // ✅ Added import
+import calendarRoutes from './routes/calendarRoutes.js';
+import gcsRoutes from './routes/gcsRoutes.js'; // ✅ Added GCS routes import
 
 import { sendJSON } from './utils/response.js';
 
@@ -23,7 +24,7 @@ let dbInitialized = false;
 export const myApi = async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
-  // Ensure DBs are created only once
+  // ✅ Ensure DBs are created only once
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
     try {
@@ -42,25 +43,25 @@ export const myApi = async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
-  // CORS headers
+  // ✅ CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Preflight request handling
+  // ✅ Handle preflight request
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
-  // Attach DBs to request
+  // ✅ Attach DBs to request
   req.databases = {
     users: usersDb,
     calendars: calendarsDb
   };
 
-  // Basic health check
+  // ✅ Health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
@@ -75,14 +76,15 @@ export const myApi = async (req, res) => {
     }
   }
 
-  // 🔀 Route handling
+  // ✅ Route handling
   try {
     console.log('➡ Routing to handlers...');
     const handled =
       (await adminRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
-      (await calendarRoutes(req, res)); // ✅ Included calendar route
+      (await calendarRoutes(req, res)) ||
+      (await gcsRoutes(req, res)); // ✅ Included GCS route
 
     console.log('✅ Route handled result:', handled);
 
