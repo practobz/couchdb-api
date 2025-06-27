@@ -21,7 +21,7 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
     const body = Buffer.concat(chunks).toString();
     const data = JSON.parse(body || '{}');
 
-    console.log('📥 Parsed POST data:', data); // 👈 debug log
+    console.log('📥 Parsed data:', data); // DEBUG LOG
 
     if (!data.customerId) {
       return sendJSON(res, 400, { error: 'Missing required field: customerId' });
@@ -36,11 +36,10 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
       createdAt: new Date().toISOString()
     };
 
-    await calendarsDb.insert(calendar);
-    console.log('✅ Calendar created:', calendar);
+    await req.databases.calendars.insert(calendar);
     return sendJSON(res, 201, calendar);
   } catch (err) {
-    console.error('❌ Error in POST /calendars:', err);
+    console.error('❌ Failed to create calendar:', err);
     return sendJSON(res, 500, { error: 'Failed to create calendar' });
   }
 }
