@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 export default async function calendarRoutes(req, res) {
   const { pathname } = parse(req.url, true);
   const calendarsDb = req.databases.calendars;
-
   const cleanPath = pathname.replace(/\/+$/, '');
 
   console.log('🌐 calendarRoutes:', req.method, cleanPath);
@@ -16,64 +15,62 @@ export default async function calendarRoutes(req, res) {
     (cleanPath === '/calendars' || cleanPath === '/api/calendars')
   ) {
     try {
-      const result = await calendarsDb.find({
-        selector: {}
-      });
-      sendJSON(res, 200, result.docs);
-      return true;
+      const result = await calendarsDb.find({ selector: {} });
+      return sendJSON(res, 200, result.docs);
     } catch (err) {
       console.error('❌ Error fetching calendars:', err);
-      sendJSON(res, 500, { error: 'Internal Server Error fetching all calendars' });
-      return true;
+      return sendJSON(res, 500, { error: 'Internal Server Error fetching all calendars' });
     }
   }
 
   // ✅ GET /calendars/:customerId — fetch specific customer's calendars
-  const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
-  if (req.method === 'GET' && match) {
-    const customerId = match[1];
-    try {
-      const result = await calendarsDb.find({
-        selector: { customerId }
-      });
+  if (req.method === 'GET') {
+    const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
+    if (match) {
+      const customerId = match[1];
+      try {
+        const result = await calendarsDb.find({ selector: { customerId } });
+        const calendars = result.docs || [];
 
-      const calendars = result.docs || [];
+        if (calendars.length === 0) {
+          return sendJSON(res, 404, { error: 'No calendar found for this customer' });
+        }
 
-      if (calendars.length === 0) {
-        return sendJSON(res, 404, { error: 'No calendar found for this customer' });
+        return sendJSON(res, 200, calendars);
+      } catch (err) {
+        console.error('❌ Error fetching calendar:', err);
+        return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
       }
-
-      return sendJSON(res, 200, calendars);
-    } catch (err) {
-      console.error('❌ Error fetching calendar:', err);
-      return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
     }
   }
 
   // ✅ POST /calendars — create calendar
   if (req.method === 'POST' && cleanPath === '/calendars') {
-    let body = '';
-    req.on('data', chunk => (body += chunk));
-    req.on('end', async () => {
-      try {
-        const data = JSON.parse(body || '{}');
-        const calendar = {
-          _id: uuidv4(),
-          customerId: data.customerId,
-          name: data.name || 'Untitled Calendar',
-          description: data.description || '',
-          contentItems: data.contentItems || [],
-          createdAt: new Date().toISOString()
-        };
-
-        await calendarsDb.insert(calendar);
-        return sendJSON(res, 201, calendar);
-      } catch (err) {
-        console.error('❌ Error creating calendar:', err);
-        return sendJSON(res, 500, { error: 'Failed to create calendar' });
+    try {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
       }
-    });
-    return true;
+
+      const body = Buffer.concat(chunks).toString();
+      const data = JSON.parse(body || '{}');
+
+      const calendar = {
+        _id: uuidv4(),
+        customerId: data.customerId,
+        name: data.name || 'Untitled Calendar',
+        description: data.description || '',
+        contentItems: data.contentItems || [],
+        createdAt: new Date().toISOString()
+      };
+
+      await calendarsDb.insert(calendar);
+      console.log('✅ Calendar inserted:', calendar);
+      return sendJSON(res, 201, calendar);
+    } catch (err) {
+      console.error('❌ Error in POST /calendars:', err);
+      return sendJSON(res, 500, { error: 'Failed to create calendar' });
+    }
   }
 
   // ✅ PUT /calendars/item/:calendarId/:date/:description — update content item
@@ -98,10 +95,7 @@ export default async function calendarRoutes(req, res) {
         calendarDoc.contentItems = calendarDoc.contentItems.map(item => {
           if (item.date === date && item.description.trim() === decodedDesc) {
             found = true;
-            return {
-              ...item,
-              ...updatedData
-            };
+            return { ...item, ...updatedData };
           }
           return item;
         });
