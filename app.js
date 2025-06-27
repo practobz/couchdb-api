@@ -7,26 +7,23 @@ import nano from 'nano';
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
-import calendarRoutes from './routes/calendarRoutes.js';
-import gcsRoutes from './routes/gcsRoutes.js'; // ✅ Ensure this file exports a default async function
+import calendarRoutes from './routes/calendarRoutes.js'; // ✅ Added import
+
 import { sendJSON } from './utils/response.js';
 
-// ✅ CouchDB connection
 const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
-
 const usersDb = couch.db.use('users');
 const calendarsDb = couch.db.use('calendars');
-const submissionsDb = couch.db.use('submissions'); // ✅ FIXED
 
 let dbInitialized = false;
 
 export const myApi = async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
-  // ✅ Initialize DBs only once
+  // Ensure DBs are created only once
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
     try {
@@ -34,50 +31,40 @@ export const myApi = async (req, res) => {
     } catch {
       await couch.db.create('users');
     }
-
     try {
       await couch.db.get('calendars');
     } catch {
       await couch.db.create('calendars');
     }
-
-    try {
-      await couch.db.get('submissions');
-    } catch {
-      await couch.db.create('submissions');
-    }
-
     dbInitialized = true;
   }
 
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
-  // ✅ CORS headers
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // ✅ Preflight request handling
+  // Preflight request handling
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
-  // ✅ Attach DBs to request object
+  // Attach DBs to request
   req.databases = {
     users: usersDb,
-    calendars: calendarsDb,
-    submissions: submissionsDb,
+    calendars: calendarsDb
   };
 
-  // ✅ Health check route
+  // Basic health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
 
-  // ✅ Return list of DBs
   if (req.method === 'GET' && pathname === '/databases') {
     try {
       const dbs = await couch.db.list();
@@ -88,15 +75,14 @@ export const myApi = async (req, res) => {
     }
   }
 
-  // ✅ Route handling
+  // 🔀 Route handling
   try {
     console.log('➡ Routing to handlers...');
     const handled =
       (await adminRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
-      (await calendarRoutes(req, res)) ||
-      (await gcsRoutes?.(req, res)); // ✅ Optional chaining to avoid crash if gcsRoutes fails
+      (await calendarRoutes(req, res)); // ✅ Included calendar route
 
     console.log('✅ Route handled result:', handled);
 
