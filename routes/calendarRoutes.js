@@ -9,42 +9,51 @@ export default async function calendarRoutes(req, res) {
 
   console.log('🌐 calendarRoutes:', req.method, cleanPath);
 
-  // ✅ POST /calendars — create calendar (placed at top to avoid being shadowed)
-  // ✅ POST /calendars — create calendar
-if (req.method === 'POST' && cleanPath === '/calendars') {
-  try {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
+  // ✅ POST /calendars — create new calendar
+  if (req.method === 'POST' && cleanPath === '/calendars') {
+    try {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+
+      const body = Buffer.concat(chunks).toString();
+      console.log('📦 Raw Body:', body); // ✅ Debug raw incoming request body
+
+      let data;
+      try {
+        data = JSON.parse(body || '{}');
+      } catch (err) {
+        console.error('❌ JSON parsing error:', err.message);
+        return sendJSON(res, 400, { error: 'Invalid JSON payload' });
+      }
+
+      console.log('✅ Parsed Body:', data); // ✅ Log parsed data object
+
+      if (!data.customerId) {
+        console.warn('⚠️ Missing customerId:', data);
+        return sendJSON(res, 400, { error: 'Missing required field: customerId' });
+      }
+
+      const calendar = {
+        _id: uuidv4(),
+        customerId: data.customerId,
+        name: data.name || 'Untitled Calendar',
+        description: data.description || '',
+        contentItems: Array.isArray(data.contentItems) ? data.contentItems : [],
+        createdAt: new Date().toISOString()
+      };
+
+      console.log('🛠 Final calendar to insert:', calendar);
+
+      await calendarsDb.insert(calendar);
+      return sendJSON(res, 201, calendar);
+    } catch (err) {
+      console.error('❌ Error handling POST /calendars:', err);
+      return sendJSON(res, 500, { error: 'Failed to create calendar' });
     }
-
-    const body = Buffer.concat(chunks).toString();
-    console.log('📦 Raw Body:', body); // debug
-
-    const data = JSON.parse(body || '{}');
-    console.log('✅ Parsed Body:', data); // debug
-
-    if (!data.customerId) {
-      return sendJSON(res, 400, { error: 'Missing required field: customerId' });
-    }
-
-    const calendar = {
-      _id: uuidv4(),
-      customerId: data.customerId,
-      name: data.name || 'Untitled Calendar',
-      description: data.description || '',
-      contentItems: Array.isArray(data.contentItems) ? data.contentItems : [],
-      createdAt: new Date().toISOString()
-    };
-console.log('🛠 Final calendar to insert:', calendar);
-
-    await calendarsDb.insert(calendar);
-    return sendJSON(res, 201, calendar);
-  } catch (err) {
-    console.error('❌ Error parsing calendar POST:', err);
-    return sendJSON(res, 500, { error: 'Failed to create calendar' });
   }
-}
+
 
 
   // ✅ GET /calendars or /api/calendars — fetch all calendars
