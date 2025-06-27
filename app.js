@@ -4,16 +4,14 @@ dotenv.config();
 import url from 'url';
 import nano from 'nano';
 
-// ✅ Route Imports
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
-import gcsRoutes from './routes/gcsRoutes.js'; // ✅ NEW: GCS routes import
+import gcsRoutes from './routes/gcsRoutes.js'; // ✅ NEW import
 
 import { sendJSON } from './utils/response.js';
 
-// ✅ CouchDB Setup
 const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
@@ -26,7 +24,7 @@ let dbInitialized = false;
 export const myApi = async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
-  // ✅ Ensure databases are initialized only once
+  // Ensure DBs are created only once
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
     try {
@@ -45,25 +43,23 @@ export const myApi = async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
-  // ✅ CORS Headers
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // ✅ Preflight (OPTIONS) Handling
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
-  // ✅ Attach databases to request
   req.databases = {
     users: usersDb,
     calendars: calendarsDb
   };
 
-  // ✅ Health check
+  // Health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
@@ -78,7 +74,6 @@ export const myApi = async (req, res) => {
     }
   }
 
-  // ✅ Route Matching
   try {
     console.log('➡ Routing to handlers...');
     const handled =
@@ -86,9 +81,7 @@ export const myApi = async (req, res) => {
       (await customerRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
       (await calendarRoutes(req, res)) ||
-      (await gcsRoutes(req, res)); // ✅ GCS route now included
-
-    console.log('✅ Route handled result:', handled);
+      (await gcsRoutes(req, res)); // ✅ ADD THIS LINE
 
     if (!handled && !res.writableEnded) {
       console.log('❌ No route matched');
