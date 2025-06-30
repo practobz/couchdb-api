@@ -107,6 +107,18 @@ export default async function calendarRoutes(req, res) {
     }
   }
 
+  // ✅ GET /calendars/:calendarId (fetch by id, for frontend compatibility)
+  const matchByCalendarId = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'GET' && matchByCalendarId) {
+    const calendarId = matchByCalendarId[1];
+    try {
+      const calendar = await calendarsDb.get(calendarId);
+      return sendJSON(res, 200, calendar);
+    } catch (err) {
+      return sendJSON(res, 404, { error: 'Calendar not found' });
+    }
+  }
+
   // ✅ PUT /calendars/item/:calendarId/:date/:description
   const itemUpdateMatch = cleanPath.match(/^\/calendars\/item\/([a-zA-Z0-9\-]+)\/(.+?)\/(.+)$/);
   if (req.method === 'PUT' && itemUpdateMatch) {
