@@ -51,13 +51,18 @@ export async function loginCustomer(req, res) {
     const usersDb = req.databases.users;
     const { email, password } = await parseBody(req);
 
+    console.log('[LOGIN] Received:', { email, password }); // Debug log
+
     if (!email || !password) {
       return sendJSON(res, 400, { error: 'Email and password are required' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    console.log('[LOGIN] Normalized email:', normalizedEmail); // Debug log
 
     const found = await usersDb.find({ selector: { email: normalizedEmail, role: 'customer' }, limit: 1 });
+    console.log('[LOGIN] DB found:', found.docs); // Debug log
+
     if (found.docs.length === 0) {
       return sendJSON(res, 401, { error: 'Invalid credentials or sign up to create account' });
     }
@@ -66,6 +71,9 @@ export async function loginCustomer(req, res) {
     if (!user.isActive) {
       return sendJSON(res, 403, { error: 'Account is inactive' });
     }
+
+    // Log password comparison for debug (do not log real passwords in production)
+    console.log('[LOGIN] Comparing passwords:', user.password, password);
 
     if (user.password !== password) {
       return sendJSON(res, 401, { error: 'Invalid credentials' });

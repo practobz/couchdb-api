@@ -1,6 +1,7 @@
 import { parse } from 'url';
 import { createCustomer, loginCustomer } from '../controllers/customerController.js';
 import { sendJSON } from '../utils/response.js';
+import { parseBody } from '../utils/parseBody.js'; // <-- Add this import
 
 export default async function customerRoutes(req, res) {
   const { pathname } = parse(req.url, true);
@@ -68,16 +69,12 @@ export default async function customerRoutes(req, res) {
 
   // ✅ POST /signup/customer
   if (req.method === 'POST' && pathname === '/signup/customer') {
-    let body = '';
-    req.on('data', chunk => (body += chunk));
-    req.on('end', async () => {
-      try {
-        const data = JSON.parse(body || '{}');
-        await createCustomer(req, res, data);
-      } catch (err) {
-        sendJSON(res, 400, { error: 'Invalid request body' });
-      }
-    });
+    try {
+      const data = await parseBody(req);
+      await createCustomer(req, res, data);
+    } catch (err) {
+      sendJSON(res, 400, { error: 'Invalid request body' });
+    }
     return true;
   }
 
@@ -89,3 +86,4 @@ export default async function customerRoutes(req, res) {
   // ❌ fallback
   return false;
 }
+

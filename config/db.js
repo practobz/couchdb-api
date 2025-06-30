@@ -1,28 +1,26 @@
-import nanoPkg from 'nano';
+import dotenv from 'dotenv';
+dotenv.config();
+import nano from 'nano';
 
-const username = process.env.COUCHDB_USER || "admin";
-const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || "admin");
-const host = process.env.COUCHDB_HOST || "127.0.0.1:5984";
-
-const nano = nanoPkg(`http://${username}:${password}@${host}`);
-
+const couchURL = process.env.COUCH_URL;
+const nanoInstance = nano(couchURL);
 
 const DB_NAMES = {
   users: 'users',
   content: 'content',
-  calendars: 'calendars'
+  calendars: 'calendars',
 };
 
 const databases = {};
 
 export async function initializeDatabases() {
-  const dbList = await nano.db.list();
+  const dbList = await nanoInstance.db.list();
 
   for (const [key, dbName] of Object.entries(DB_NAMES)) {
     if (!dbList.includes(dbName)) {
-      await nano.db.create(dbName);
+      await nanoInstance.db.create(dbName);
     }
-    databases[key] = nano.db.use(dbName);
+    databases[key] = nanoInstance.db.use(dbName);
   }
 
   return databases;
