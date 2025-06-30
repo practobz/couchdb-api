@@ -30,12 +30,22 @@ let dbInitialized = false;
 
 // ✅ Exported handler for Google Cloud Function
 export const myApi = async (req, res) => {
-  console.log(`⚡ Request received: ${req.method} ${req.url}`);
-
-  // 🌐 CORS
+  // Always set CORS headers first
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Patch res.writeHead to always include CORS headers
+  const originalWriteHead = res.writeHead;
+  res.writeHead = function (...args) {
+    // Ensure CORS headers are present on all responses
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return originalWriteHead.apply(res, args);
+  };
+
+  console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
   if (req.method === 'OPTIONS') {
     console.log('🛑 OPTIONS preflight request');
