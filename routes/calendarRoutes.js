@@ -66,16 +66,6 @@ export default async function calendarRoutes(req, res) {
     let body = '';
     req.on('data', chunk => (body += chunk));
     req.on('end', async () => {
-      let responded = false;
-      // Timeout logic: respond with 504 if not finished in 10 seconds
-      const timeout = setTimeout(() => {
-        if (!responded) {
-          res.writeHead(504, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Request timed out' }));
-          responded = true;
-        }
-      }, 10000);
-
       try {
         let calendarDoc = await calendarsDb.get(calendarId);
         const updatedData = JSON.parse(body || '{}');
@@ -85,17 +75,9 @@ export default async function calendarRoutes(req, res) {
           updatedAt: new Date().toISOString()
         };
         await calendarsDb.insert(updatedCalendar);
-        if (!responded) {
-          sendJSON(res, 200, updatedCalendar);
-          responded = true;
-        }
+        return sendJSON(res, 200, updatedCalendar);
       } catch (err) {
-        if (!responded) {
-          sendJSON(res, 500, { error: 'Failed to update calendar' });
-          responded = true;
-        }
-      } finally {
-        clearTimeout(timeout);
+        return sendJSON(res, 500, { error: 'Failed to update calendar' });
       }
     });
     return true;
@@ -117,18 +99,6 @@ export default async function calendarRoutes(req, res) {
   const matchById = cleanPath.match(/^\/calendar-by-id\/([a-zA-Z0-9\-]+)$/);
   if (req.method === 'GET' && matchById) {
     const calendarId = matchById[1];
-    try {
-      const calendar = await calendarsDb.get(calendarId);
-      return sendJSON(res, 200, calendar);
-    } catch (err) {
-      return sendJSON(res, 404, { error: 'Calendar not found' });
-    }
-  }
-
-  // ✅ GET /calendars/:calendarId (fetch by id, for frontend compatibility)
-  const matchByCalendarId = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
-  if (req.method === 'GET' && matchByCalendarId) {
-    const calendarId = matchByCalendarId[1];
     try {
       const calendar = await calendarsDb.get(calendarId);
       return sendJSON(res, 200, calendar);
