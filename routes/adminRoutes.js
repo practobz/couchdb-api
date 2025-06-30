@@ -26,8 +26,9 @@ export default async function adminRoutes(req, res) {
 
     try {
       const result = await usersDb.find({ selector });
+      // Always send valid JSON
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result.docs));
+      res.end(JSON.stringify(result.docs || []));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
