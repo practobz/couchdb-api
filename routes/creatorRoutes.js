@@ -10,11 +10,27 @@ if (req.method === 'GET' && normalizedPath === '/users' && query.role === 'conte
   return await getCreators(req, res);
 }
 
+// ✅ POST /signup/creator with timeout
+if (req.method === 'POST' && pathname === '/signup/creator') {
+  let timeout;
+  const timeoutMs = 10000; // 10 seconds
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        res.writeHead(504, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request timed out' }));
+      }
+      reject(new Error('Request timed out'));
+    }, timeoutMs);
+  });
 
-  // ✅ POST /signup/creator
-  if (req.method === 'POST' && pathname === '/signup/creator') {
-    return await creatorSignup(req, res);
+  try {
+    await Promise.race([creatorSignup(req, res), timeoutPromise]);
+  } finally {
+    clearTimeout(timeout);
   }
+  return true;
+}
 
   // ✅ POST /content_creator/login
   if (req.method === 'POST' && pathname === '/content_creator/login') {

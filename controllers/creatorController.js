@@ -12,42 +12,70 @@ const CREATOR_PERMISSIONS = [
 
 // ✅ Signup
 export async function creatorSignup(req, res) {
+  let responded = false;
   try {
     const usersDb = req.databases.users;
-    const body = await parseBody(req);
-const { email, password, name, mobile, specialization, experience } = body;
+    // Add a timeout for parseBody and DB operations
+    const timeoutMs = 9000;
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+    );
+
+    const body = await Promise.race([parseBody(req), timeoutPromise]);
+    const { email, password, name, mobile, specialization, experience } = body;
 
 
     if (!email || !password) {
-      return sendJSON(res, 400, { error: 'Email and password are required' });
+      if (!responded) {
+        responded = true;
+        return sendJSON(res, 400, { error: 'Email and password are required' });
+      }
+      return;
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existing = await usersDb.find({ selector: { email: normalizedEmail }, limit: 1 });
+    const existing = await Promise.race([
+      usersDb.find({ selector: { email: normalizedEmail }, limit: 1 }),
+      timeoutPromise
+    ]);
     if (existing.docs.length > 0) {
-      return sendJSON(res, 409, { error: 'Email already exists' });
+      if (!responded) {
+        responded = true;
+        return sendJSON(res, 409, { error: 'Email already exists' });
+      }
+      return;
     }
 
-   const user = {
-  _id: uuidv4(),
-  email: normalizedEmail,
-  password,
-  name,                // ✅ newly added
-  mobile,              // ✅ newly added
-  specialization,      // ✅ newly added
-  experience,          // ✅ newly added
-  role: 'content_creator',
-  permissions: CREATOR_PERMISSIONS,
-  isActive: true,
-  createdAt: new Date().toISOString()
+    const user = {
+      _id: uuidv4(),
+      email: normalizedEmail,
+      password,
+      name,                // ✅ newly added
+      mobile,              // ✅ newly added
+      specialization,      // ✅ newly added
+      experience,          // ✅ newly added
+      role: 'content_creator',
+      permissions: CREATOR_PERMISSIONS,
+      isActive: true,
+      createdAt: new Date().toISOString()
 };
 
 
-    await usersDb.insert(user);
-    return sendJSON(res, 201, { message: 'Content Creator registered', userId: user._id });
+    await Promise.race([usersDb.insert(user), timeoutPromise]);
+    if (!responded) {
+      responded = true;
+      return sendJSON(res, 201, { message: 'Content Creator registered', userId: user._id });
+    }
   } catch (err) {
-    console.error('Creator signup error:', err);
-    return sendJSON(res, 500, { error: 'Failed to create content creator account' });
+    if (!responded && !res.headersSent) {
+      if (err.message === 'Request timed out') {
+        res.writeHead(504, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request timed out' }));
+      } else {
+        console.error('Creator signup error:', err);
+        sendJSON(res, 500, { error: 'Failed to create content creator account' });
+      }
+    }
   }
 }
 
