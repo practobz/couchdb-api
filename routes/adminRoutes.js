@@ -8,8 +8,10 @@ export default async function adminRoutes(req, res) {
   }
 
   if (req.method === 'POST' && pathname === '/admin/login') {
-    return await loginAdmin(req, res);
-  }
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ message: '✅ login route working' }));
+  return true;
+}
 
   // Example route handler for GET /users?role=content_creator
   if (req.method === 'GET' && req.url.startsWith('/users')) {
