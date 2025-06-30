@@ -1,4 +1,3 @@
-// controllers/creatorController.js
 import { parseBody } from '../utils/parseBody.js';
 import { sendJSON } from '../utils/response.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,27 +15,33 @@ export async function creatorSignup(req, res) {
   try {
     const usersDb = req.databases.users;
     const body = await parseBody(req);
+const { email, password, name, mobile, specialization, experience } = body;
 
-    const { email, password } = body;
+
     if (!email || !password) {
       return sendJSON(res, 400, { error: 'Email and password are required' });
     }
 
-    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     const existing = await usersDb.find({ selector: { email: normalizedEmail }, limit: 1 });
     if (existing.docs.length > 0) {
       return sendJSON(res, 409, { error: 'Email already exists' });
     }
 
-    const user = {
-      _id: uuidv4(),
-      email: normalizedEmail,
-      password,
-      role: 'content_creator',
-      permissions: CREATOR_PERMISSIONS,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
+   const user = {
+  _id: uuidv4(),
+  email: normalizedEmail,
+  password,
+  name,                // ✅ newly added
+  mobile,              // ✅ newly added
+  specialization,      // ✅ newly added
+  experience,          // ✅ newly added
+  role: 'content_creator',
+  permissions: CREATOR_PERMISSIONS,
+  isActive: true,
+  createdAt: new Date().toISOString()
+};
+
 
     await usersDb.insert(user);
     return sendJSON(res, 201, { message: 'Content Creator registered', userId: user._id });
@@ -85,5 +90,20 @@ export async function loginCreator(req, res) {
   } catch (err) {
     console.error('Creator login error:', err);
     return sendJSON(res, 500, { error: 'Login failed due to server error' });
+  }
+}
+
+// ✅ Fetch Content Creators
+export async function getCreators(req, res) {
+  try {
+    const usersDb = req.databases.users;
+    const result = await usersDb.find({
+      selector: { role: 'content_creator' },
+      fields: ['_id', 'email', 'role']
+    });
+    return sendJSON(res, 200, { creators: result.docs });
+  } catch (err) {
+    console.error('Fetch creators error:', err);
+    return sendJSON(res, 500, { error: 'Failed to fetch content creators' });
   }
 }
