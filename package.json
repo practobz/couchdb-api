@@ -2,19 +2,18 @@
   "name": "aureum-backend",
   "version": "1.0.0",
   "description": "Backend for Aureum Solutions content management platform",
-  "main": "app.js",
   "type": "module",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "gcp": "gcloud functions deploy myapi --entry-point=myApi --runtime=nodejs18 --trigger-http --allow-unauthenticated --region=us-central1"
   },
   "dependencies": {
-  "@google-cloud/storage": "^7.16.0",
-  "nano": "^10.1.4",
-  "uuid": "^9.0.1",
-  "dotenv": "^16.4.5"  
-},
-
+    "@google-cloud/storage": "^7.16.0",
+    "dotenv": "^16.4.5",
+    "nano": "^10.1.4",
+    "uuid": "^9.0.1"
+  },
   "devDependencies": {
     "nodemon": "^3.0.0"
   },
@@ -25,7 +24,8 @@
     "content-management",
     "couchdb",
     "backend",
-    "aureum"
+    "aureum",
+    "google-cloud-function"
   ],
   "author": "Aureum Solutions",
   "license": "MIT"

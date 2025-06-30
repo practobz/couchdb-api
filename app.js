@@ -1,7 +1,7 @@
+// app.js (for Google Cloud Functions)
 import dotenv from 'dotenv';
 dotenv.config();
 
-import http from 'http';
 import url from 'url';
 import nano from 'nano';
 
@@ -14,12 +14,13 @@ import contentRoutes from './routes/contentRoutes.js';
 
 import { sendJSON } from './utils/response.js';
 
-// ✅ CouchDB connection
+// ✅ CouchDB credentials and connection
 const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
 
+// ✅ CouchDB databases
 const usersDb = couch.db.use('users');
 const calendarsDb = couch.db.use('calendars');
 const customersDb = couch.db.use('customers');
@@ -27,8 +28,8 @@ const submissionsDb = couch.db.use('submissions');
 
 let dbInitialized = false;
 
-// ✅ Create HTTP server
-const server = http.createServer(async (req, res) => {
+// ✅ Exported handler for Google Cloud Function
+export const myApi = async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
   // 🌐 CORS
@@ -37,11 +38,12 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
+    console.log('🛑 OPTIONS preflight request');
     res.statusCode = 204;
     return res.end();
   }
 
-  // 🛠️ Initialize databases (once)
+  // 🔄 Initialize databases once
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
     const dbNames = ['users', 'calendars', 'customers', 'submissions'];
@@ -55,7 +57,7 @@ const server = http.createServer(async (req, res) => {
     dbInitialized = true;
   }
 
-  // 📦 Attach DBs to request
+  // ✅ Attach databases to request
   req.databases = {
     users: usersDb,
     calendars: calendarsDb,
@@ -66,12 +68,12 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const { pathname } = parsedUrl;
 
-  // ✅ Health check route
+  // 🔍 Health check
   if (req.method === 'GET' && pathname === '/') {
-    return sendJSON(res, 200, { message: '🚀 Cloud Run backend is running!' });
+    return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
 
-  // ✅ DB listing
+  // 🔍 List all databases
   if (req.method === 'GET' && pathname === '/databases') {
     try {
       const dbs = await couch.db.list();
@@ -82,13 +84,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 🔁 Route handling
+  // 🛣️ Route handling
   try {
     const handled =
-      (await calendarRoutes(req, res)) ||
-      (await customerRoutes(req, res)) ||
       (await adminRoutes(req, res)) ||
+      (await customerRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
+      (await calendarRoutes(req, res)) ||
       (await gcsRoutes(req, res)) ||
       (await contentRoutes(req, res));
 
@@ -96,15 +98,9 @@ const server = http.createServer(async (req, res) => {
       sendJSON(res, 404, { error: 'Route not found' });
     }
   } catch (err) {
-    console.error('❌ Server error:', err);
+    console.error('❌ Unexpected error:', err);
     if (!res.writableEnded) {
       sendJSON(res, 500, { error: 'Internal Server Error' });
     }
   }
-});
-
-// ✅ REQUIRED: Listen on Cloud Run port
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
-});
+};
