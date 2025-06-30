@@ -3,17 +3,15 @@ import { loginAdmin, adminSignup } from '../controllers/adminController.js';
 export default async function adminRoutes(req, res) {
   const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
-  // Admin Signup
   if (req.method === 'POST' && pathname === '/signup/admin') {
     return await adminSignup(req, res);
   }
 
-  // Admin Login
   if (req.method === 'POST' && pathname === '/admin/login') {
     return await loginAdmin(req, res);
   }
 
-  // Fetch users by role
+  // Example route handler for GET /users?role=content_creator
   if (req.method === 'GET' && req.url.startsWith('/users')) {
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
     const role = urlObj.searchParams.get('role');
@@ -26,9 +24,9 @@ export default async function adminRoutes(req, res) {
 
     try {
       const result = await usersDb.find({ selector });
-      // Always send valid JSON
+      // Return only the docs array (array of users)
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result.docs || []));
+      res.end(JSON.stringify(result.docs));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });

@@ -103,9 +103,4 @@ export const myApi = async (req, res) => {
       sendJSON(res, 500, { error: 'Internal Server Error' });
     }
   }
-
-  // Ensure response is always ended with valid JSON
-  if (!res.writableEnded && !res.headersSent) {
-    sendJSON(res, 500, { error: 'No response from handler' });
-  }
 };
