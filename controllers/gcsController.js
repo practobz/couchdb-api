@@ -27,7 +27,7 @@ export async function getSignedUrl(req, res) {
     const [signedUrl] = await file.getSignedUrl({
       version: 'v4',
       action: 'write',
-      expires: Date.now() + 5 * 60 * 1000,
+      expires: Date.now() + 5 * 60 * 1000, // 5 minutes
       contentType: contentType,
     });
 

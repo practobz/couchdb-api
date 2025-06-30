@@ -9,67 +9,105 @@ export default async function calendarRoutes(req, res) {
 
   console.log('🌐 calendarRoutes:', req.method, cleanPath);
 
-  // ✅ POST /calendars — create calendar
-if (req.method === 'POST' && cleanPath === '/calendars') {
-  try {
-    const data = req.body || {};
-    console.log('📦 Received body:', data);
-
-    if (!data.customerId) {
-      return sendJSON(res, 400, { error: 'Missing required field: customerId' });
-    }
-
-    const calendar = {
-      _id: uuidv4(),
-      customerId: data.customerId,
-      name: data.name || 'Untitled Calendar',
-      description: data.description || '',
-      contentItems: data.contentItems || [],
-      createdAt: new Date().toISOString()
-    };
-
-    await calendarsDb.insert(calendar);
-    return sendJSON(res, 201, calendar);
-  } catch (err) {
-    console.error('❌ Error creating calendar:', err);
-    return sendJSON(res, 500, { error: 'Failed to create calendar' });
-  }
-}
-
-  // ✅ GET /calendars or /api/calendars — fetch all calendars
-  if (
-    req.method === 'GET' &&
-    (cleanPath === '/calendars' || cleanPath === '/api/calendars')
-  ) {
+  // ✅ GET /calendars
+  if (req.method === 'GET' && cleanPath === '/calendars') {
     try {
       const result = await calendarsDb.find({ selector: {} });
       return sendJSON(res, 200, result.docs);
     } catch (err) {
-      console.error('❌ Error fetching calendars:', err);
-      return sendJSON(res, 500, { error: 'Internal Server Error fetching calendars' });
+      return sendJSON(res, 500, { error: 'Internal Server Error' });
     }
   }
 
-  // ✅ GET /calendars/:customerId — fetch specific customer's calendars
-  const match = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
-  if (req.method === 'GET' && match) {
-    const customerId = match[1];
+  // ✅ POST /calendars
+  if (req.method === 'POST' && cleanPath === '/calendars') {
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const calendar = {
+          _id: uuidv4(),
+          customerId: data.customerId,
+          name: data.name || 'Untitled Calendar',
+          description: data.description || '',
+          contentItems: data.contentItems || [],
+          assignedTo: '',
+          assignedToName: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        await calendarsDb.insert(calendar);
+        return sendJSON(res, 201, calendar);
+      } catch (err) {
+        return sendJSON(res, 500, { error: 'Failed to create calendar' });
+      }
+    });
+    return true;
+  }
+
+  // ✅ DELETE /calendars/:calendarId — delete a calendar by _id (placed above PUT!)
+  const deleteMatch = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'DELETE' && deleteMatch) {
+    const calendarId = deleteMatch[1];
+    try {
+      const calendar = await calendarsDb.get(calendarId);
+      await calendarsDb.destroy(calendarId, calendar._rev);
+      return sendJSON(res, 200, { success: true });
+    } catch (err) {
+      return sendJSON(res, 404, { error: 'Calendar not found' });
+    }
+  }
+
+  // ✅ PUT /calendars/:calendarId — update calendar
+  const updateMatch = cleanPath.match(/^\/calendars\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'PUT' && updateMatch) {
+    const calendarId = updateMatch[1];
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      try {
+        let calendarDoc = await calendarsDb.get(calendarId);
+        const updatedData = JSON.parse(body || '{}');
+        const updatedCalendar = {
+          ...calendarDoc,
+          ...updatedData,
+          updatedAt: new Date().toISOString()
+        };
+        await calendarsDb.insert(updatedCalendar);
+        return sendJSON(res, 200, updatedCalendar);
+      } catch (err) {
+        return sendJSON(res, 500, { error: 'Failed to update calendar' });
+      }
+    });
+    return true;
+  }
+
+  // ✅ GET /calendars/customer/:customerId
+  const matchByCustomer = cleanPath.match(/^\/calendars\/customer\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'GET' && matchByCustomer) {
+    const customerId = matchByCustomer[1];
     try {
       const result = await calendarsDb.find({ selector: { customerId } });
-      const calendars = result.docs || [];
-
-      if (calendars.length === 0) {
-        return sendJSON(res, 404, { error: 'No calendar found for this customer' });
-      }
-
-      return sendJSON(res, 200, calendars);
+      return sendJSON(res, 200, result.docs || []);
     } catch (err) {
-      console.error('❌ Error fetching calendar:', err);
-      return sendJSON(res, 500, { error: 'Internal Server Error fetching calendar' });
+      return sendJSON(res, 500, { error: 'Failed to fetch calendar by customerId' });
     }
   }
 
-  // ✅ PUT /calendars/item/:calendarId/:date/:description — update content item
+  // ✅ GET /calendar-by-id/:calendarId
+  const matchById = cleanPath.match(/^\/calendar-by-id\/([a-zA-Z0-9\-]+)$/);
+  if (req.method === 'GET' && matchById) {
+    const calendarId = matchById[1];
+    try {
+      const calendar = await calendarsDb.get(calendarId);
+      return sendJSON(res, 200, calendar);
+    } catch (err) {
+      return sendJSON(res, 404, { error: 'Calendar not found' });
+    }
+  }
+
+  // ✅ PUT /calendars/item/:calendarId/:date/:description
   const itemUpdateMatch = cleanPath.match(/^\/calendars\/item\/([a-zA-Z0-9\-]+)\/(.+?)\/(.+)$/);
   if (req.method === 'PUT' && itemUpdateMatch) {
     const [_, calendarId, date, description] = itemUpdateMatch;
@@ -79,52 +117,35 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
       try {
         const updatedData = JSON.parse(body || '{}');
         const calendarDoc = await calendarsDb.get(calendarId);
-
-        if (!calendarDoc || !Array.isArray(calendarDoc.contentItems)) {
-          return sendJSON(res, 404, { error: 'Calendar not found or invalid structure' });
-        }
-
-        let found = false;
         const decodedDesc = decodeURIComponent(description).trim();
-
+        let found = false;
         calendarDoc.contentItems = calendarDoc.contentItems.map(item => {
           if (item.date === date && item.description.trim() === decodedDesc) {
             found = true;
-            return {
-              ...item,
-              ...updatedData
-            };
+            return { ...item, ...updatedData };
           }
           return item;
         });
 
-        if (!found) {
-          return sendJSON(res, 404, { error: 'Content item to update not found' });
-        }
+        if (!found) return sendJSON(res, 404, { error: 'Content item not found' });
 
         await calendarsDb.insert(calendarDoc);
-        return sendJSON(res, 200, { success: true, message: 'Content item updated' });
+        return sendJSON(res, 200, { success: true });
       } catch (err) {
-        console.error('❌ Error updating content item:', err);
         return sendJSON(res, 500, { error: 'Failed to update content item' });
       }
     });
     return true;
   }
 
-  // ✅ DELETE /calendars/item/:calendarId/:date/:description — delete specific content item
+  // ✅ DELETE /calendars/item/:calendarId/:date/:description
   const itemDeleteMatch = cleanPath.match(/^\/calendars\/item\/([a-zA-Z0-9\-]+)\/(.+?)\/(.+)$/);
   if (req.method === 'DELETE' && itemDeleteMatch) {
     const [_, calendarId, date, description] = itemDeleteMatch;
-
     try {
       const calendarDoc = await calendarsDb.get(calendarId);
-      if (!calendarDoc || !Array.isArray(calendarDoc.contentItems)) {
-        return sendJSON(res, 404, { error: 'Calendar not found or invalid structure' });
-      }
-
-      const originalLength = calendarDoc.contentItems.length;
       const decodedDesc = decodeURIComponent(description);
+      const originalLength = calendarDoc.contentItems.length;
 
       calendarDoc.contentItems = calendarDoc.contentItems.filter(
         item => !(item.date === date && item.description === decodedDesc)
@@ -135,12 +156,11 @@ if (req.method === 'POST' && cleanPath === '/calendars') {
       }
 
       await calendarsDb.insert(calendarDoc);
-      return sendJSON(res, 200, { success: true, message: 'Content item deleted' });
+      return sendJSON(res, 200, { success: true });
     } catch (err) {
-      console.error('❌ Error deleting content item:', err);
       return sendJSON(res, 500, { error: 'Failed to delete content item' });
     }
   }
 
-  return false; // No matching route
+  return false; // fallback
 }

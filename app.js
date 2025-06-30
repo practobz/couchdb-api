@@ -7,7 +7,9 @@ import nano from 'nano';
 import adminRoutes from './routes/adminRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import creatorRoutes from './routes/creatorRoutes.js';
-import calendarRoutes from './routes/calendarRoutes.js'; // ✅ Added import
+import calendarRoutes from './routes/calendarRoutes.js';
+import gcsRoutes from './routes/gcsRoutes.js';
+import contentRoutes from './routes/contentRoutes.js';
 
 import { sendJSON } from './utils/response.js';
 
@@ -15,8 +17,11 @@ const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
 const couch = nano(`http://${username}:${password}@${host}`);
+
 const usersDb = couch.db.use('users');
 const calendarsDb = couch.db.use('calendars');
+const customersDb = couch.db.use('customers');
+const submissionsDb = couch.db.use('submissions');
 
 let dbInitialized = false;
 
@@ -26,15 +31,13 @@ export const myApi = async (req, res) => {
   // Ensure DBs are created only once
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
-    try {
-      await couch.db.get('users');
-    } catch {
-      await couch.db.create('users');
-    }
-    try {
-      await couch.db.get('calendars');
-    } catch {
-      await couch.db.create('calendars');
+    const dbNames = ['users', 'calendars', 'customers', 'submissions'];
+    for (const dbName of dbNames) {
+      try {
+        await couch.db.get(dbName);
+      } catch {
+        await couch.db.create(dbName);
+      }
     }
     dbInitialized = true;
   }
@@ -57,10 +60,12 @@ export const myApi = async (req, res) => {
   // Attach DBs to request
   req.databases = {
     users: usersDb,
-    calendars: calendarsDb
+    calendars: calendarsDb,
+    customers: customersDb,
+    submissions: submissionsDb,
   };
 
-  // Basic health check
+  // Health check
   if (req.method === 'GET' && pathname === '/') {
     return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
   }
@@ -79,10 +84,12 @@ export const myApi = async (req, res) => {
   try {
     console.log('➡ Routing to handlers...');
     const handled =
-      (await adminRoutes(req, res)) ||
+      (await calendarRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
+      (await adminRoutes(req, res)) ||
       (await creatorRoutes(req, res)) ||
-      (await calendarRoutes(req, res)); // ✅ Included calendar route
+      (await gcsRoutes(req, res)) ||
+      (await contentRoutes(req, res));
 
     console.log('✅ Route handled result:', handled);
 

@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["http://localhost:3000"],
+    "origin": ["${REACT_APP_API_URL}"],
     "method": ["GET", "PUT", "POST", "HEAD"],
     "responseHeader": ["Content-Type"],
     "maxAgeSeconds": 3600

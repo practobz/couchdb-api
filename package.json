@@ -5,12 +5,11 @@
   "main": "app.js",
   "type": "module",
   "scripts": {
-    "start": "functions-framework --target=myApiHandler",
+    "start": "node app.js",
     "dev": "nodemon app.js"
   },
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.3.0",
-    "dotenv": "^16.4.5",
+    "@google-cloud/storage": "^7.16.0",
     "nano": "^10.1.4",
     "uuid": "^9.0.1"
   },
