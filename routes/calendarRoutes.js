@@ -66,6 +66,16 @@ export default async function calendarRoutes(req, res) {
     let body = '';
     req.on('data', chunk => (body += chunk));
     req.on('end', async () => {
+      let responded = false;
+      // Timeout logic: respond with 504 if not finished in 10 seconds
+      const timeout = setTimeout(() => {
+        if (!responded) {
+          res.writeHead(504, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Request timed out' }));
+          responded = true;
+        }
+      }, 10000);
+
       try {
         let calendarDoc = await calendarsDb.get(calendarId);
         const updatedData = JSON.parse(body || '{}');
@@ -75,9 +85,17 @@ export default async function calendarRoutes(req, res) {
           updatedAt: new Date().toISOString()
         };
         await calendarsDb.insert(updatedCalendar);
-        return sendJSON(res, 200, updatedCalendar);
+        if (!responded) {
+          sendJSON(res, 200, updatedCalendar);
+          responded = true;
+        }
       } catch (err) {
-        return sendJSON(res, 500, { error: 'Failed to update calendar' });
+        if (!responded) {
+          sendJSON(res, 500, { error: 'Failed to update calendar' });
+          responded = true;
+        }
+      } finally {
+        clearTimeout(timeout);
       }
     });
     return true;
