@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import http from 'http';
 import url from 'url';
 import nano from 'nano';
 
@@ -13,6 +14,7 @@ import contentRoutes from './routes/contentRoutes.js';
 
 import { sendJSON } from './utils/response.js';
 
+// ✅ CouchDB connection
 const username = process.env.COUCHDB_USER || 'admin';
 const password = encodeURIComponent(process.env.COUCHDB_PASSWORD || 'admin');
 const host = process.env.COUCHDB_HOST || 'localhost:5984';
@@ -25,39 +27,35 @@ const submissionsDb = couch.db.use('submissions');
 
 let dbInitialized = false;
 
-export const myApi = async (req, res) => {
+// ✅ Create HTTP server
+const server = http.createServer(async (req, res) => {
   console.log(`⚡ Request received: ${req.method} ${req.url}`);
 
-  // Ensure DBs are created only once
+  // 🌐 CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    return res.end();
+  }
+
+  // 🛠️ Initialize databases (once)
   if (!dbInitialized) {
     console.log('🔄 Initializing databases...');
     const dbNames = ['users', 'calendars', 'customers', 'submissions'];
-    for (const dbName of dbNames) {
+    for (const name of dbNames) {
       try {
-        await couch.db.get(dbName);
+        await couch.db.get(name);
       } catch {
-        await couch.db.create(dbName);
+        await couch.db.create(name);
       }
     }
     dbInitialized = true;
   }
 
-  const parsedUrl = url.parse(req.url, true);
-  const { pathname } = parsedUrl;
-
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  // Preflight request handling
-  if (req.method === 'OPTIONS') {
-    console.log('🛑 OPTIONS preflight request');
-    res.statusCode = 204;
-    return res.end();
-  }
-
-  // Attach DBs to request
+  // 📦 Attach DBs to request
   req.databases = {
     users: usersDb,
     calendars: calendarsDb,
@@ -65,11 +63,15 @@ export const myApi = async (req, res) => {
     submissions: submissionsDb,
   };
 
-  // Health check
+  const parsedUrl = url.parse(req.url, true);
+  const { pathname } = parsedUrl;
+
+  // ✅ Health check route
   if (req.method === 'GET' && pathname === '/') {
-    return sendJSON(res, 200, { message: '🚀 Cloud Function backend running!' });
+    return sendJSON(res, 200, { message: '🚀 Cloud Run backend is running!' });
   }
 
+  // ✅ DB listing
   if (req.method === 'GET' && pathname === '/databases') {
     try {
       const dbs = await couch.db.list();
@@ -80,9 +82,8 @@ export const myApi = async (req, res) => {
     }
   }
 
-  // 🔀 Route handling
+  // 🔁 Route handling
   try {
-    console.log('➡ Routing to handlers...');
     const handled =
       (await calendarRoutes(req, res)) ||
       (await customerRoutes(req, res)) ||
@@ -91,16 +92,19 @@ export const myApi = async (req, res) => {
       (await gcsRoutes(req, res)) ||
       (await contentRoutes(req, res));
 
-    console.log('✅ Route handled result:', handled);
-
     if (!handled && !res.writableEnded) {
-      console.log('❌ No route matched');
       sendJSON(res, 404, { error: 'Route not found' });
     }
   } catch (err) {
-    console.error('❌ Unexpected error in myApi:', err);
+    console.error('❌ Server error:', err);
     if (!res.writableEnded) {
       sendJSON(res, 500, { error: 'Internal Server Error' });
     }
   }
-};
+});
+
+// ✅ REQUIRED: Listen on Cloud Run port
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});
