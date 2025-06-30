@@ -1,6 +1,58 @@
+import { v4 as uuidv4 } from 'uuid';
 import { parseBody } from '../utils/parseBody.js';
 import { sendJSON } from '../utils/response.js';
 
+// === Admin Signup ===
+export async function adminSignup(req, res) {
+  try {
+    const usersDb = req.databases.users;
+    const body = await parseBody(req);
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return sendJSON(res, 400, { error: 'Email and password are required' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existing = await usersDb.find({
+      selector: { email: normalizedEmail },
+      limit: 1
+    });
+
+    if (existing.docs.length > 0) {
+      return sendJSON(res, 409, { error: 'Email already exists' });
+    }
+
+    const ADMIN_PERMISSIONS = [
+      'view_all_content',
+      'manage_customers',
+      'manage_content_creators',
+      'assign_content',
+      'view_analytics',
+      'manage_system_settings',
+      'manage_users'
+    ];
+
+    const user = {
+      _id: uuidv4(),
+      email: normalizedEmail,
+      password,
+      role: 'admin',
+      permissions: ADMIN_PERMISSIONS,
+      isActive: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const result = await usersDb.insert(user);
+    return sendJSON(res, 201, { message: 'Admin registered', userId: result.id });
+  } catch (err) {
+    console.error('Admin signup error:', err);
+    return sendJSON(res, 500, { error: 'Failed to create admin account' });
+  }
+}
+
+// === Admin Login ===
 export async function loginAdmin(req, res) {
   try {
     console.log('🔐 Admin login initiated');
